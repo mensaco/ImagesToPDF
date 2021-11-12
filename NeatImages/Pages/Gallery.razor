@@ -1,0 +1,100 @@
+﻿@page "/gallery"
+
+<h3>Gallery</h3>
+
+<style>
+	.A4{
+		max-height:calc(@(maxHeightA4)mm - @(pageMarginA4*2)mm);
+		max-width:calc(@(maxWidthA4)mm - @(pageMarginA4*2)mm);
+		margin:calc(@(pageMarginA4)mm - 0px);
+	}
+
+	.thumbnail{
+		max-width:180px;
+		max-height:180px;
+		margin: 3px;
+	}
+</style>
+
+@foreach (var image in Base64Images)
+{
+	<img src="@image.url" class="thumbnail img-thumbnail" @onclick="ImageClicked" />
+}
+
+<pre>@jsonE</pre>
+
+
+<form @onsubmit="OnSubmit">
+	<InputFile OnChange="OnInputFileChange" multiple />
+	<br /><br />
+	<button type="submit">Upload Selected File(s)</button>
+</form>
+
+@using System.IO
+@using System.Text.Json
+
+@code {
+
+	double maxHeightA4 = 297;
+	double maxWidthA4 = 210;
+	double pageMarginA4 = 25.4 / 2;
+	double mm2px = 1 / 0.264583333;
+	int maxImageWidth => (int)(mm2px * (maxWidthA4 - pageMarginA4 / 2));
+	int maxImageHeight => (int)(mm2px * (maxHeightA4 - pageMarginA4 / 2));
+
+	string jsonE = "";
+
+	string Message = "No file(s) selected";
+	IReadOnlyList<IBrowserFile>? selectedFiles;
+	List<(string url, int width, int height)> Base64Images = new();
+
+	private JsonSerializerOptions options { get; set; }
+
+	protected override void OnInitialized()
+	{
+		options = new()
+			{
+				WriteIndented = true
+
+			};
+	}
+
+	private void ImageClicked(MouseEventArgs e)
+	{
+		jsonE = System.Text.Json.JsonSerializer.Serialize<MouseEventArgs>(e,options);
+
+	}
+
+	private void OnInputFileChange(InputFileChangeEventArgs e)
+	{	
+		selectedFiles = e.GetMultipleFiles();
+
+		Message = $"{selectedFiles.Count} file(s) selected";
+		this.StateHasChanged();
+	}
+
+	private async void OnSubmit()
+	{
+		if (selectedFiles != null)
+		{
+			foreach (var file in selectedFiles)
+			{
+				var tamedFile = await file.RequestImageFileAsync("jpg", maxImageWidth, maxImageHeight);
+
+				var buffers = new byte[tamedFile.Size];
+				await tamedFile.OpenReadStream(20 * 1000000L).ReadAsync(buffers);
+				string imageType = tamedFile.ContentType;
+				string imgUrl = $"data:{imageType};base64,{Convert.ToBase64String(buffers)}";
+				
+				Base64Images.Add((imgUrl,width ,height));
+
+			}
+
+			Message = $"{selectedFiles.Count} file(s) uploaded on server";
+			this.StateHasChanged();
+		}
+
+
+	}
+
+}
