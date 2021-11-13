@@ -1,9 +1,131 @@
 ﻿@page "/"
 
-<PageTitle>Index</PageTitle>
+<h3>Gallery</h3>
 
-<h1>Hello, world!</h1>
+<style>
+	.A4 {
+		max-height: calc(@(maxHeightA4)mm - @(pageMarginA4*2)mm);
+		max-width: calc(@(maxWidthA4)mm - @(pageMarginA4*2)mm);
+		margin: calc(@(pageMarginA4)mm - 0px);
+	}
 
-Welcome to your new app.
+	.thumbnail {
+		max-height: 180px;
+		margin: 3px;
+	}
 
-<SurveyPrompt Title="How is Blazor working for you?" />
+	.border-2 {
+		border-width: 2px !important;
+	}
+
+	.border-3 {
+		border-width: 3px !important;
+	}
+
+</style>
+
+@if (Base64Images.Count > 0)
+{
+	<div class="mb-3">
+		@for (int i = 0; i < Base64Images.Count; i++)
+		{
+			var image = Base64Images[i];
+			<img src="@image.Url" class="thumbnail img-thumbnail @calculatedClass(image)" @onclick="(() => DeSelect(image))" />
+
+		}
+	</div>
+
+}
+
+
+
+
+<form @onsubmit="OnSubmit">
+	<InputFile OnChange="OnInputFileChange" multiple />
+	<button type="submit" class="btn btn-primary">Upload Selected File(s)</button>
+
+</form>
+
+@using System.IO
+@using System.Text.Json
+
+@code {
+
+	double maxHeightA4 = 297;
+	double maxWidthA4 = 210;
+	double pageMarginA4 = 25.4 / 2;
+	double mm2px = 1 / 0.264583333;
+	int maxImageWidth => (int)(mm2px * (maxWidthA4 - pageMarginA4 / 2));
+	int maxImageHeight => (int)(mm2px * (maxHeightA4 - pageMarginA4 / 2));
+
+
+	string Message = "No file(s) selected";
+	IReadOnlyList<IBrowserFile>? selectedFiles;
+	List<ImageElement> Base64Images = new();
+	List<ImageElement> SelectedImages = new();
+
+
+
+
+	private void OnInputFileChange(InputFileChangeEventArgs e)
+	{
+		selectedFiles = e.GetMultipleFiles(40);
+
+		Message = $"{selectedFiles.Count} file(s) selected";
+		this.StateHasChanged();
+	}
+
+	private async void OnSubmit()
+	{
+		if (selectedFiles != null)
+		{
+			for (int i = 0; i < selectedFiles.Count; i++)
+			{
+				var file = selectedFiles[i];
+				string imageType = "image/png";
+
+				var tamedFile = await file.RequestImageFileAsync(imageType, maxImageWidth, maxImageHeight);
+
+				var buffers = new byte[tamedFile.Size];
+				await tamedFile.OpenReadStream(20 * 1000000L).ReadAsync(buffers);
+
+				string imgUrl = $"data:{imageType};base64,{Convert.ToBase64String(buffers)}";
+
+
+				Base64Images.Add(new ImageElement() { Url = imgUrl, IsSelected = false, Index = i });
+
+			}
+
+			Message = $"{selectedFiles.Count} file(s) uploaded on server";
+			this.StateHasChanged();
+		}
+	}
+
+	private string calculatedClass(ImageElement image)
+	{
+		bool isSelected = SelectedImages.Contains(image);
+
+		var cc = isSelected ? "border border-2 border-warning" : "";
+		if (isSelected && SelectedImages.Count > 1 && SelectedImages.Last() == image)
+		{
+			cc = "border border-2 border-success";
+		}
+		return cc;
+	}
+
+	private void DeSelect(ImageElement image)
+	{
+		bool isSelected = SelectedImages.Contains(image);
+		if (isSelected)
+		{
+			SelectedImages.Remove(image);
+		}
+		else
+		{
+			SelectedImages.Add(image);
+
+		}
+	}
+
+
+}
